@@ -1,3 +1,8 @@
+/// Adds two numbers.
+///
+/// ```
+/// assert_eq!(pyrosec_core::add(2, 3), 5);
+/// ```
 pub fn add(left: u64, right: u64) -> u64 {
     left + right
 }

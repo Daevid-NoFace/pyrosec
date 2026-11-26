@@ -159,4 +159,42 @@ mod tests {
             );
         }
     }
+
+    /// Max nodal error vs. the semi-infinite analytical solution
+    /// T(x,t) = T0 + (Ts - T0)·erfc(x / 2√(αt)), after 1 h of a 1000 °C surface.
+    /// At the far face (x = 0.3 m) the erfc argument is ≈ 2.8 → erfc ≈ 6e-5 (≈ 0.06 °C),
+    /// so a finite slab behaves as semi-infinite.
+    fn max_error_vs_erfc(nodes: usize, steps: usize) -> f64 {
+        let (t0, ts, t_end) = (20.0, 1000.0, 3600.0);
+        let slab = Slab {
+            material: CONCRETE,
+            length: 0.3,
+            nodes,
+        };
+        let t = solve(&slab, t0, ts, t0, t_end / steps as f64, steps);
+        let penetration = 2.0 * (CONCRETE.diffusivity() * t_end).sqrt();
+        t.iter()
+            .zip(slab.positions())
+            .map(|(ti, x)| (ti - (t0 + (ts - t0) * libm::erfc(x / penetration))).abs())
+            .fold(0.0, f64::max)
+    }
+
+    #[test]
+    fn matches_semi_infinite_erfc() {
+        let err = max_error_vs_erfc(31, 60);
+        // Measured 2.40 °C; the bound catches regressions that grow the error.
+        assert!(err < 3.0, "max error {err:.3} °C");
+    }
+
+    #[test]
+    fn converges_second_order() {
+        // Halve dx and quarter dt (dt ∝ dx²): error should drop ~4x, O(dx²) + O(dt).
+        let coarse = max_error_vs_erfc(31, 60);
+        let fine = max_error_vs_erfc(61, 240);
+        let ratio = coarse / fine;
+        assert!(
+            ratio > 3.5,
+            "coarse {coarse:.3}, fine {fine:.3}, ratio {ratio:.2}"
+        );
+    }
 }
